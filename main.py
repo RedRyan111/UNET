@@ -18,6 +18,6 @@ print(f"Labels batch shape: {train_labels.size()}")
 train_features = train_features.permute(0, 3, 2, 1)
 
 features = [3, 64, 64]
-model = UNET.DoubleConv(features)
+model = UNET.UNET()
 outs = model(train_features)
 print(f'out shape: {outs.shape}')
