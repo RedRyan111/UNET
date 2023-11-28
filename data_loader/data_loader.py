@@ -24,7 +24,7 @@ class CustomImageDataset(Dataset):
     def get_image(self, idx):
         file_name = self.train_images_dir_name + self.train_images_file_name_list[idx]
         image = Image.open(file_name)
-        image = np.array(image.convert("L"), dtype=np.float32)
+        image = np.array(image, dtype=np.float32)
         image_tensor = torch.tensor(image)
         return image_tensor
 
@@ -45,14 +45,4 @@ class CustomImageDataset(Dataset):
         if self.target_transform:
             mask = self.target_transform(mask)
         return image, mask
-
-
-TrainingCustomImageDataset = CustomImageDataset()
-print(len(TrainingCustomImageDataset))
-
-# Display image and label.
-train_dataloader = DataLoader(TrainingCustomImageDataset, batch_size=64, shuffle=True)
-train_features, train_labels = next(iter(train_dataloader))
-print(f"Feature batch shape: {train_features.size()}")
-print(f"Labels batch shape: {train_labels.size()}")
 

@@ -1,3 +1,4 @@
 \.idea
 carvana-image-masking-challenge.zip
 \carvana-image-masking-challenge
+*.pyc

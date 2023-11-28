@@ -1,12 +1,23 @@
 import numpy as np
 import torch
-from PIL import Image
+from matplotlib import pyplot as plt
+from torch.utils.data import DataLoader
+from data_loader.data_loader import CustomImageDataset
+from setup import batch_size
+import models.UNET as UNET
 
-#im = Image.open(r"carvana-image-masking-challenge\train\train\0cdf5b5d0ce1_01.jpg")
-#im.show()
+TrainingCustomImageDataset = CustomImageDataset()
+print(len(TrainingCustomImageDataset))
 
-mask = Image.open(r"carvana-image-masking-challenge\train_masks\train_masks\0cdf5b5d0ce1_01_mask.gif")
-mask = np.array(mask.convert("L"), dtype=np.float32)
-mask = torch.tensor(mask)
+# Display image and label.
+train_dataloader = DataLoader(TrainingCustomImageDataset, batch_size=batch_size, shuffle=True)
+train_features, train_labels = next(iter(train_dataloader))
+print(f"Feature batch shape: {train_features.size()}")
+print(f"Labels batch shape: {train_labels.size()}")
 
-print(mask.shape)
+train_features = train_features.permute(0, 3, 2, 1)
+
+features = [3, 64, 64]
+model = UNET.DoubleConv(features)
+outs = model(train_features)
+print(f'out shape: {outs.shape}')
