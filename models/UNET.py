@@ -1,6 +1,9 @@
 import numpy as np
 import torch.nn as nn
 import torch
+import torchvision.transforms as transforms
+import torchvision.transforms.functional
+import torch.nn.functional as F
 
 
 class UNET(nn.Module):
@@ -44,24 +47,51 @@ class UNET(nn.Module):
         self.double_8 = DoubleConv(np.flip(feature_3))
         self.double_9 = DoubleConv(np.flip(feature_2))
 
-
-
-
     def forward(self, x):
+        print(f'x pre shape: {x.shape}')
+        x = pad_tensor_shapes_if_odd(x)
+        print(f'x post shape: {x.shape}')
+        print(f'')
+
         y1 = self.down_sample(self.double_1(x))
+        print(f'y1 pre shape: {y1.shape}')
+        y1 = pad_tensor_shapes_if_odd(y1)
+        print(f'y1 post shape: {y1.shape}')
+        print(f'')
+
         y2 = self.down_sample(self.double_2(y1))
+        print(f'y2: {y2.shape}')
         y3 = self.down_sample(self.double_3(y2))
+        print(f'y3: {y3.shape}')
         y4 = self.down_sample(self.double_4(y3))
+        print(f'y4: {y4.shape}')
         y5 = self.down_sample(self.double_5(y4))
+        print(f'y5: {y5.shape}')
 
-        y1 = self.up_sample(self.up_1(x))
-        y2 = self.up_sample(self.up_2(y1))
-        y3 = self.up_sample(self.up_3(y2))
-        y4 = self.up_sample(self.up_4(y3))
-        y5 = self.up_sample(self.up_5(y4))
+        #y5_up = torch.concatenate((y4, y5), dim=-1)
+        y6 = self.up_sample(self.double_6(y5))
 
-        return y5
+        print(f'y6 pre crop: {y6.shape}')
+        y6 = torchvision.transforms.functional.center_crop(img=y6, output_size=[y4.shape[2], y4.shape[3]]) #permute?
+        print(f'y6 post crop: {y6.shape}')
 
+        y6_up = torch.concatenate((y3, y6), dim=-1)
+        y7 = self.up_sample(self.double_7(y2, y6_up))
+
+        y7_up = torch.concatenate((y2, y7), dim=-1)
+        y8 = self.up_sample(self.double_8(y2, y7_up))
+
+        y8_up = torch.concatenate((y1, y8), dim=-1)
+        y9 = self.up_sample(self.double_9(y2, y8_up))
+
+        return y9
+
+
+def pad_tensor_shapes_if_odd(inp_tensor):
+    tensor_shape = [0 for i in range(4)]
+    tensor_shape[2] = inp_tensor.shape[2] % 2
+    tensor_shape[3] = inp_tensor.shape[3] % 2
+    return F.pad(inp_tensor, tensor_shape, "constant", 0)
 
 class DoubleConv(nn.Module):
     def __init__(self, features):
