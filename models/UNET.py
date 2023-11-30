@@ -8,6 +8,9 @@ class UNET(nn.Module):
         super(UNET, self).__init__()
 
         self.max_pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.up_sample = UpSample(scaling_factor=2)
+
+        self.down_sample = DownSample()
 
         feature_1 = np.array([3, 32, 32])
         self.double_1 = DoubleConv(feature_1)
@@ -42,18 +45,20 @@ class UNET(nn.Module):
         self.double_9 = DoubleConv(np.flip(feature_2))
 
 
-    def forward(self, x):
-        y1 = self.max_pool(self.double_1(x))
-        y2 = self.max_pool(self.double_2(y1))
-        y3 = self.max_pool(self.double_3(y2))
-        y4 = self.max_pool(self.double_4(y3))
-        y5 = self.max_pool(self.double_5(y4))
 
-        y1 = self.max_pool(self.up_1(x))
-        y2 = self.max_pool(self.up_2(y1))
-        y3 = self.max_pool(self.up_3(y2))
-        y4 = self.max_pool(self.up_4(y3))
-        y5 = self.max_pool(self.up_5(y4))
+
+    def forward(self, x):
+        y1 = self.down_sample(self.double_1(x))
+        y2 = self.down_sample(self.double_2(y1))
+        y3 = self.down_sample(self.double_3(y2))
+        y4 = self.down_sample(self.double_4(y3))
+        y5 = self.down_sample(self.double_5(y4))
+
+        y1 = self.up_sample(self.up_1(x))
+        y2 = self.up_sample(self.up_2(y1))
+        y3 = self.up_sample(self.up_3(y2))
+        y4 = self.up_sample(self.up_4(y3))
+        y5 = self.up_sample(self.up_5(y4))
 
         return y5
 
@@ -76,23 +81,19 @@ class DoubleConv(nn.Module):
 
 
 class DownSample(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1):
+    def __init__(self):
         super(DownSample, self).__init__()
-        # downsampling by 2
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
-        )
+
+        self.down_sample = nn.MaxPool2d(kernel_size=2, stride=2)
 
     def forward(self, x):
-        return self.conv(x)
+        return self.down_sample(x)
 
 class UpSample(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1):
+    def __init__(self, scaling_factor):
         super(UpSample, self).__init__()
-        # downsampling by 2
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
-        )
+
+        self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
 
     def forward(self, x):
-        return self.conv(x)
+        return self.up_sample(x)
