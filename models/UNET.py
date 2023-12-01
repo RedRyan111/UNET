@@ -6,9 +6,43 @@ import torchvision.transforms.functional
 import torch.nn.functional as F
 
 
+class DoubleConv(nn.Module):
+    def __init__(self, features):
+        super(DoubleConv, self).__init__()
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(features[0], features[1], 3, 1, 1, bias=False),
+            nn.BatchNorm2d(features[1]),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(features[1], features[2], 3, 1, 1, bias=False),
+            nn.BatchNorm2d(features[2]),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class Encoder(nn.Module):
+    def __init__(self, features):
+        super(Encoder, self).__init__()
+        self.module = nn.ModuleList([])
+        self.setup_module(features)
+
+    def setup_module(self, features):
+        for feature in features:
+            double_conv_features = [feature, feature * 2]
+            double_conv = DoubleConv(double_conv_features)
+            self.module.append(double_conv)
+
 class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
+
+        self.features = [32, 64, 128, 256, 512]
+
+        self.encoder = nn.ModuleList([])
+        self.decoder = nn.ModuleList([])
 
         self.up_sample = UpSample(scaling_factor=2)
         self.down_sample = DownSample(scaling_factor=2)
@@ -66,7 +100,6 @@ class UNET(nn.Module):
         y5 = self.down_sample(self.double_5(y4))
         print(f'y5: {y5.shape}')
 
-        # y5_up = torch.concatenate((y4, y5), dim=-1)
         y6 = self.up_sample(self.double_6(y5))
         print(f'y6 pre crop: {y6.shape}')
         y6 = crop_tensor_to_tensor_h_and_w(y6, y4)
@@ -97,29 +130,17 @@ class UNET(nn.Module):
 def crop_tensor_to_tensor_h_and_w(x, y):
     return torchvision.transforms.functional.center_crop(img=x, output_size=[y.shape[2], y.shape[3]])
 
+def resize(x, skip_connection):
+    if x.shape != skip_connection.shape:
+        x = TF.resize(x, size=skip_connection.shape[2:])
+    return x
+
 
 def pad_tensor_shapes_if_odd(inp_tensor):
     tensor_shape = [0 for i in range(4)]
     tensor_shape[2] = inp_tensor.shape[2] % 2
     tensor_shape[3] = inp_tensor.shape[3] % 2
     return F.pad(inp_tensor, tensor_shape, "constant", 0)
-
-
-class DoubleConv(nn.Module):
-    def __init__(self, features):
-        super(DoubleConv, self).__init__()
-
-        self.conv = nn.Sequential(
-            nn.Conv2d(features[0], features[1], 3, 1, 1, bias=False),
-            nn.BatchNorm2d(features[1]),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(features[1], features[2], 3, 1, 1, bias=False),
-            nn.BatchNorm2d(features[2]),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, x):
-        return self.conv(x)
 
 
 class DownSample(nn.Module):
@@ -140,3 +161,18 @@ class UpSample(nn.Module):
 
     def forward(self, x):
         return self.up_sample(x)
+
+
+
+'''
+class UpSample(nn.Module):
+    def __init__(self, scaling_factor):
+        super(UpSample, self).__init__()
+
+        self.up_sample = nn.ConvTranspose2d(
+            feature * 2, feature, kernel_size=2, stride=2,
+        )
+
+    def forward(self, x):
+        return self.up_sample(x)
+'''
