@@ -10,10 +10,8 @@ class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
 
-        self.max_pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.up_sample = UpSample(scaling_factor=2)
-
-        self.down_sample = DownSample()
+        self.down_sample = DownSample(scaling_factor=2)
 
         feature_1 = np.array([3, 32, 32])
         self.double_1 = DoubleConv(feature_1)
@@ -37,7 +35,7 @@ class UNET(nn.Module):
         double_7_features[0] = double_7_features[0] * 2
 
         double_8_features = np.flip(feature_2)
-        double_8_features[0] = double_6_features[0] * 2
+        double_8_features[0] = double_8_features[0] * 2
 
         double_9_features = np.flip(feature_1)
         double_9_features[0] = double_9_features[0] * 2
@@ -68,23 +66,36 @@ class UNET(nn.Module):
         y5 = self.down_sample(self.double_5(y4))
         print(f'y5: {y5.shape}')
 
-        #y5_up = torch.concatenate((y4, y5), dim=-1)
+        # y5_up = torch.concatenate((y4, y5), dim=-1)
         y6 = self.up_sample(self.double_6(y5))
-
         print(f'y6 pre crop: {y6.shape}')
-        y6 = torchvision.transforms.functional.center_crop(img=y6, output_size=[y4.shape[2], y4.shape[3]]) #permute?
+        y6 = crop_tensor_to_tensor_h_and_w(y6, y4)
         print(f'y6 post crop: {y6.shape}')
 
-        y6_up = torch.concatenate((y3, y6), dim=-1)
-        y7 = self.up_sample(self.double_7(y2, y6_up))
+        y6_up = torch.concatenate((y4, y6), dim=1)
+        print(f'y6 post concat: {y6_up.shape}')
 
-        y7_up = torch.concatenate((y2, y7), dim=-1)
-        y8 = self.up_sample(self.double_8(y2, y7_up))
+        y7 = self.up_sample(self.double_7(y6_up))
+        print(f'y7 pre crop: {y7.shape}')
+        y7 = crop_tensor_to_tensor_h_and_w(y7, y3)
+        print(f'y7 post crop: {y7.shape}')
 
-        y8_up = torch.concatenate((y1, y8), dim=-1)
-        y9 = self.up_sample(self.double_9(y2, y8_up))
+        y7_up = torch.concatenate((y3, y7), dim=1)
+        y8 = self.up_sample(self.double_8(y7_up))
+
+        print(f'y8 pre crop: {y8.shape}')
+        y8 = crop_tensor_to_tensor_h_and_w(y8, y2)
+        print(f'y8 post crop: {y8.shape}')
+
+        y8_up = torch.concatenate((y2, y8), dim=1)
+        print(f'y8 final: {y8_up.shape}')
+        y9 = self.up_sample(self.double_9(y8_up))
 
         return y9
+
+
+def crop_tensor_to_tensor_h_and_w(x, y):
+    return torchvision.transforms.functional.center_crop(img=x, output_size=[y.shape[2], y.shape[3]])
 
 
 def pad_tensor_shapes_if_odd(inp_tensor):
@@ -92,6 +103,7 @@ def pad_tensor_shapes_if_odd(inp_tensor):
     tensor_shape[2] = inp_tensor.shape[2] % 2
     tensor_shape[3] = inp_tensor.shape[3] % 2
     return F.pad(inp_tensor, tensor_shape, "constant", 0)
+
 
 class DoubleConv(nn.Module):
     def __init__(self, features):
@@ -111,13 +123,14 @@ class DoubleConv(nn.Module):
 
 
 class DownSample(nn.Module):
-    def __init__(self):
+    def __init__(self, scaling_factor):
         super(DownSample, self).__init__()
 
-        self.down_sample = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.down_sample = nn.MaxPool2d(kernel_size=scaling_factor, stride=scaling_factor)
 
     def forward(self, x):
         return self.down_sample(x)
+
 
 class UpSample(nn.Module):
     def __init__(self, scaling_factor):
