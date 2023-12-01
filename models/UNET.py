@@ -35,6 +35,14 @@ class Encoder(nn.Module):
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
+    def forward(self, x):
+        out_list = []
+        cur_out = x
+        for module in self.module:
+            cur_out = module(cur_out)
+            out_list.append(cur_out)
+        return cur_out
+
 
 class Decoder(nn.Module):
     def __init__(self, features):
@@ -47,6 +55,15 @@ class Decoder(nn.Module):
             double_conv_features = [feature * 2, feature]
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
+
+    def forward(self, out_list):
+        out_list = reversed(out_list)
+        for index, module in enumerate(self.module):
+            #concatentate
+            #copr / resize
+            cur_out = module(out_list[index])
+            out_list.append(cur_out)
+        return cur_out
 
 
 class UNET(nn.Module):
