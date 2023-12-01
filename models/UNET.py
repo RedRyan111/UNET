@@ -35,17 +35,31 @@ class Encoder(nn.Module):
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
+
+class Decoder(nn.Module):
+    def __init__(self, features):
+        super(Decoder, self).__init__()
+        self.module = nn.ModuleList([])
+        self.setup_module(features)
+
+    def setup_module(self, features):
+        for feature in reversed(features):
+            double_conv_features = [feature * 2, feature]
+            double_conv = DoubleConv(double_conv_features)
+            self.module.append(double_conv)
+
+
 class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
 
         self.features = [32, 64, 128, 256, 512]
 
-        self.encoder = nn.ModuleList([])
-        self.decoder = nn.ModuleList([])
-
         self.up_sample = UpSample(scaling_factor=2)
         self.down_sample = DownSample(scaling_factor=2)
+
+        self.decoder = Decoder(self.features)
+        self.encoder = Encoder(self.features)
 
         feature_1 = np.array([3, 32, 32])
         self.double_1 = DoubleConv(feature_1)
