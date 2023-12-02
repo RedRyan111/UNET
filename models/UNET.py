@@ -44,7 +44,7 @@ class Encoder(nn.Module):
             cur_out = module(cur_out)
             cur_out = self.down_sampler(cur_out)
             out_list.append(cur_out)
-        return cur_out
+        return out_list
 
 
 class Decoder(nn.Module):
@@ -63,6 +63,7 @@ class Decoder(nn.Module):
 
     def forward(self, out_list):
         out_list = reversed(out_list)
+        cur_out = out_list[0]
         for index, module in enumerate(self.module):
             encoder_output = out_list[index]
             #concatentate
@@ -70,7 +71,6 @@ class Decoder(nn.Module):
             cur_out = module(out_list[index])
             cur_out = self.up_sampler(cur_out)
             torch.concatenate((cur_out, encoder_output), dim=1)
-            out_list.append(cur_out)
         return cur_out
 
 
