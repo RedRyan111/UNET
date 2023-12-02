@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import torch.nn as nn
 import torch
@@ -42,8 +44,10 @@ class Encoder(nn.Module):
         cur_out = x
         for module in self.module:
             cur_out = module(cur_out)
-            cur_out = self.down_sampler(cur_out)
+            cur_out = pad_tensor_shapes_if_odd(cur_out)
             out_list.append(cur_out)
+
+            cur_out = self.down_sampler(cur_out)
         return out_list
 
 
@@ -58,11 +62,12 @@ class Decoder(nn.Module):
         feature_length = len(features)
         for i in range(feature_length-2, -1, -1):
             double_conv_features = [features[i+1], features[i], features[i]]
+            print(f'decoder feature: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
-    def forward(self, out_list):
-        out_list = reversed(out_list)
+    def forward(self, out_list: List):
+        out_list.reverse()
         cur_out = out_list[0]
         for index, module in enumerate(self.module):
             encoder_output = out_list[index]
@@ -103,6 +108,7 @@ def resize(x, skip_connection):
     return x
 '''
 
+
 def pad_tensor_shapes_if_odd(inp_tensor):
     tensor_shape = [0 for i in range(4)]
     tensor_shape[2] = inp_tensor.shape[2] % 2
@@ -127,7 +133,7 @@ class UpSample(nn.Module):
         self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
 
     def forward(self, x):
-        return self.up_sample(x)
+        return x#self.up_sample(x)
 
 
 
