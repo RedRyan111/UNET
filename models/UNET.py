@@ -60,22 +60,29 @@ class Decoder(nn.Module):
 
     def setup_module(self, features):
         feature_length = len(features)
-        for i in range(feature_length-2, -1, -1):
-            double_conv_features = [features[i+1], features[i], features[i]]
+        for i in range(feature_length-1, -1, -1):
+            double_conv_features = [features[i]*2, features[i], features[i]]
             print(f'decoder feature: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
     def forward(self, out_list: List):
         out_list.reverse()
-        cur_out = out_list[0]
+        cur_upsample = out_list[0]
+        print(f'pre: {cur_upsample.shape}')
+        cur_upsample = self.up_sampler(cur_upsample)
+        print(f'post: {cur_upsample.shape}')
         for index, module in enumerate(self.module):
-            encoder_output = out_list[index]
-            #concatentate
-            #copr / resize
-            cur_out = module(out_list[index])
-            cur_out = self.up_sampler(cur_out)
-            torch.concatenate((cur_out, encoder_output), dim=1)
+            encoder_output = out_list[index+1]
+            encoder_output = crop_tensor_to_tensor_h_and_w(encoder_output, cur_upsample)
+
+            print(f'upsample: {cur_upsample.shape} enc output: {encoder_output.shape}')
+
+            cur_inp = torch.concatenate((cur_upsample, encoder_output), dim=1)
+            cur_out = module(cur_inp)
+            print(f'model output: {cur_out.shape}')
+            cur_upsample = self.up_sampler(cur_out)
+
         return cur_out
 
 
@@ -133,17 +140,17 @@ class UpSample(nn.Module):
         self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
 
     def forward(self, x):
-        return x#self.up_sample(x)
+        return self.up_sample(x)
 
 
 
 '''
 class UpSample(nn.Module):
-    def __init__(self, scaling_factor):
+    def __init__(self, scaling_factor=2):
         super(UpSample, self).__init__()
 
         self.up_sample = nn.ConvTranspose2d(
-            feature * 2, feature, kernel_size=2, stride=2,
+            feature * scaling_factor, feature, kernel_size=scaling_factor, stride=2,
         )
 
     def forward(self, x):
