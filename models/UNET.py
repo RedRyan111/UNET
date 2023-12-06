@@ -1,10 +1,6 @@
 from typing import List
-
-import numpy as np
 import torch.nn as nn
 import torch
-import torchvision.transforms.functional
-import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 
 
@@ -12,7 +8,7 @@ class UNET(nn.Module):
     def __init__(self, features, num_inp_channels, num_labels):
         super(UNET, self).__init__()
 
-        self.features = features#[3, 12, 24, 48]#[3, 64, 128, 256, 512, 1024]
+        self.features = features
 
         self.encoder = Encoder([num_inp_channels] + self.features)
         self.decoder = Decoder([num_labels] + self.features)

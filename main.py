@@ -1,6 +1,3 @@
-import numpy as np
-import torch
-from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from data_loader.data_loader import CustomImageDataset
 from setup import batch_size
@@ -11,8 +8,8 @@ import torch.optim as op
 TrainingCustomImageDataset = CustomImageDataset()
 print(len(TrainingCustomImageDataset))
 
-# Display image and label.
 train_dataloader = DataLoader(TrainingCustomImageDataset, batch_size=batch_size, shuffle=True)
+
 features = [12, 24, 48]
 num_inp_channels = 3
 num_labels = 1
