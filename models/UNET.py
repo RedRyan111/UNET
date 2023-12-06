@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch
 import torchvision.transforms.functional
 import torch.nn.functional as F
+import torchvision.transforms.functional as TF
 
 
 class DoubleConv(nn.Module):
@@ -35,6 +36,7 @@ class Encoder(nn.Module):
         feature_length = len(features)
         for i in range(feature_length-1):
             double_conv_features = [features[i], features[i+1], features[i+1]]
+            print(f'encoder features: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
@@ -43,8 +45,12 @@ class Encoder(nn.Module):
         cur_out = x
         for module in self.module:
             cur_out = module(cur_out)
-            padded_out = pad_tensor_shapes_if_odd(cur_out)
-            print(f'prev out: {cur_out.shape} padded out: {padded_out.shape}')
+            h = cur_out.shape[2] + cur_out.shape[2] % 2
+            w = cur_out.shape[3] + cur_out.shape[3] % 2
+            padded_out = TF.resize(cur_out, size=[h, w])
+
+            #padded_out = pad_tensor_shapes_if_odd(cur_out)
+            #print(f'prev out: {cur_out.shape} padded out: {padded_out.shape}')
             out_list.append(padded_out)
 
             cur_out = self.down_sampler(padded_out)
@@ -65,6 +71,7 @@ class Decoder(nn.Module):
     def setup_double_conv(self, features):
         for i in range(len(features)-1):
             double_conv_features = [features[i], features[i+1], features[i+1]]
+            print(f'decoder features: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
@@ -77,16 +84,12 @@ class Decoder(nn.Module):
         out_list.reverse()
         up_sample_model = self.up_sampler[0]
         cur_up_sample = up_sample_model(out_list[0])
-        #print(f'before upsample: {out_list[0].shape} post: {cur_up_sample.shape}')
         for i in range(len(out_list)-1):
             next_encoder_output = out_list[i+1]
-            #next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_up_sample)
-            cur_up_sample = crop_tensor_to_tensor_h_and_w(cur_up_sample, next_encoder_output)
-
-            print(f'upsample: {cur_up_sample.shape} next encoder: {next_encoder_output.shape}')
+            #cur_up_sample = crop_tensor_to_tensor_h_and_w(cur_up_sample, next_encoder_output)
+            cur_up_sample = TF.resize(cur_up_sample, next_encoder_output.shape[2:])
 
             double_conv_inp = torch.concatenate((cur_up_sample, next_encoder_output), dim=1)
-            #print(f'double conv inp: {double_conv_inp.shape}')
 
             double_conv = self.module[i]
             cur_double_conv = double_conv(double_conv_inp)
@@ -94,12 +97,10 @@ class Decoder(nn.Module):
             if i == len(out_list)-2:
                 double_conv = self.module[i+1]
                 cur_double_conv = double_conv(cur_double_conv)
-                print(f'cur double conv: {cur_double_conv.shape}')
-                cur_double_conv = crop_tensor_to_tensor_h_and_w(cur_up_sample, next_encoder_output)
+                cur_double_conv = crop_tensor_to_tensor_h_and_w(cur_double_conv, next_encoder_output)
                 return cur_double_conv
 
             up_sample_model = self.up_sampler[i+1]
-            print(f'cur double conv: {cur_double_conv.shape}')
             cur_up_sample = up_sample_model(cur_double_conv) #this is causing problems
 
 
@@ -107,7 +108,7 @@ class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
 
-        self.features = [3, 64, 128, 256, 512, 1024]
+        self.features = [3, 12, 24, 48]#[3, 64, 128, 256, 512, 1024]
 
         self.down_sample = DownSample(scaling_factor=2)
 
@@ -116,20 +117,13 @@ class UNET(nn.Module):
 
     def forward(self, x):
         out_list = self.encoder(x)
-        #[print(i.shape) for i in out_list]
         y = self.decoder(out_list)
+        y = crop_tensor_to_tensor_h_and_w(y, x)
         return y
 
 
 def crop_tensor_to_tensor_h_and_w(x, y):
     return torchvision.transforms.functional.center_crop(img=x, output_size=[y.shape[2], y.shape[3]])
-
-'''
-def resize(x, skip_connection):
-    if x.shape != skip_connection.shape:
-        x = TF.resize(x, size=skip_connection.shape[2:])
-    return x
-'''
 
 
 def pad_tensor_shapes_if_odd(inp_tensor):
