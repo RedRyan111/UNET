@@ -17,6 +17,11 @@ print(f"Labels batch shape: {train_labels.size()}")
 
 train_features = train_features.permute(0, 3, 2, 1)
 
+max_pool = torch.nn.MaxPool2d(kernel_size=(3, 3))
+train_features = max_pool(train_features)
+
+print(f"Max pooled features: {train_features.size()}")
+
 features = [3, 64, 64]
 model = UNET.UNET()
 outs = model(train_features)

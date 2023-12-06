@@ -35,7 +35,7 @@ class Encoder(nn.Module):
         feature_length = len(features)
         for i in range(feature_length-1):
             double_conv_features = [features[i], features[i+1], features[i+1]]
-            print(f'double: {double_conv_features}')
+            print(f'encoder: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
@@ -52,51 +52,63 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, features, up_sampler):
+    def __init__(self, features):
         super(Decoder, self).__init__()
         self.module = nn.ModuleList([])
-        self.up_sampler = up_sampler
-        self.setup_module(features)
+        self.up_sampler = nn.ModuleList([])
 
-    def setup_module(self, features):
+        self.setup_decoder(features)
+
+    def setup_decoder(self, features):
         feature_length = len(features)
-        for i in range(feature_length-1, -1, -1):
+        for i in range(feature_length-2, 0, -1):
             double_conv_features = [features[i]*2, features[i], features[i]]
             print(f'decoder feature: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
+            cur_upsampler = UpSample(2, features[i]*2, features[i])
+            self.up_sampler.append(cur_upsampler)
+
+        double_conv_features = [features[1], features[0], features[0]]
+        print(f'decoder feature: {double_conv_features}')
+        double_conv = DoubleConv(double_conv_features)
+        self.module.append(double_conv)
+
+        cur_upsampler = UpSample(2, features[1], features[0])
+        self.up_sampler.append(cur_upsampler)
+
     def forward(self, out_list: List):
         out_list.reverse()
-        cur_upsample = out_list[0]
-        print(f'pre: {cur_upsample.shape}')
-        cur_upsample = self.up_sampler(cur_upsample)
-        print(f'post: {cur_upsample.shape}')
-        for index, module in enumerate(self.module):
-            encoder_output = out_list[index+1]
-            encoder_output = crop_tensor_to_tensor_h_and_w(encoder_output, cur_upsample)
 
-            print(f'upsample: {cur_upsample.shape} enc output: {encoder_output.shape}')
+        for i in range(len(out_list)-1):
+            up_sample_model = self.up_sampler[i]
+            encoder_output = out_list[i]
+            cur_upsample = up_sample_model(encoder_output)
 
-            cur_inp = torch.concatenate((cur_upsample, encoder_output), dim=1)
-            cur_out = module(cur_inp)
-            print(f'model output: {cur_out.shape}')
-            cur_upsample = self.up_sampler(cur_out)
+            next_encoder_output = out_list[i+1]
+            next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_upsample)
 
-        return cur_out
+            print(f'upsample: {cur_upsample.shape} next encoder: {next_encoder_output.shape}')
+
+            double_conv_inp = torch.concatenate((cur_upsample, next_encoder_output), dim=1)
+
+            double_conv = self.module[i]
+
+            return double_conv(double_conv_inp)
 
 
 class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
 
-        self.features = [3, 32, 64, 128, 256, 512]
+        self.features = [3, 32, 64, 128]
 
-        self.up_sample = UpSample(scaling_factor=2)
+        #self.up_sample = UpSample(scaling_factor=2)
         self.down_sample = DownSample(scaling_factor=2)
 
         self.encoder = Encoder(self.features, self.down_sample)
-        self.decoder = Decoder(self.features, self.up_sample)
+        self.decoder = Decoder(self.features)#, self.up_sample)
 
     def forward(self, x):
         out_list = self.encoder(x)
@@ -134,25 +146,13 @@ class DownSample(nn.Module):
 
 
 class UpSample(nn.Module):
-    def __init__(self, scaling_factor):
+    def __init__(self, scaling_factor, inp_features, out_features):
         super(UpSample, self).__init__()
 
         self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
+        self.conv = nn.Conv2d(inp_features, out_features, kernel_size=3)
 
     def forward(self, x):
-        return self.up_sample(x)
-
-
-
-'''
-class UpSample(nn.Module):
-    def __init__(self, scaling_factor=2):
-        super(UpSample, self).__init__()
-
-        self.up_sample = nn.ConvTranspose2d(
-            feature * scaling_factor, feature, kernel_size=scaling_factor, stride=2,
-        )
-
-    def forward(self, x):
-        return self.up_sample(x)
-'''
+        up = self.up_sample(x)
+        conv = self.conv(up)
+        return conv
