@@ -35,7 +35,6 @@ class Encoder(nn.Module):
         feature_length = len(features)
         for i in range(feature_length-1):
             double_conv_features = [features[i], features[i+1], features[i+1]]
-            print(f'encoder: {double_conv_features}')
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
@@ -44,10 +43,11 @@ class Encoder(nn.Module):
         cur_out = x
         for module in self.module:
             cur_out = module(cur_out)
-            cur_out = pad_tensor_shapes_if_odd(cur_out)
-            out_list.append(cur_out)
+            padded_out = pad_tensor_shapes_if_odd(cur_out)
+            print(f'prev out: {cur_out.shape} padded out: {padded_out.shape}')
+            out_list.append(padded_out)
 
-            cur_out = self.down_sampler(cur_out)
+            cur_out = self.down_sampler(padded_out)
         return out_list
 
 
@@ -57,58 +57,57 @@ class Decoder(nn.Module):
         self.module = nn.ModuleList([])
         self.up_sampler = nn.ModuleList([])
 
-        self.setup_decoder(features)
+        features.reverse()
 
-    def setup_decoder(self, features):
-        feature_length = len(features)
-        for i in range(feature_length-2, 0, -1):
-            double_conv_features = [features[i]*2, features[i], features[i]]
-            print(f'decoder feature: {double_conv_features}')
+        self.setup_double_conv(features)
+        self.setup_up_sampler(features)
+
+    def setup_double_conv(self, features):
+        for i in range(len(features)-1):
+            double_conv_features = [features[i], features[i+1], features[i+1]]
             double_conv = DoubleConv(double_conv_features)
             self.module.append(double_conv)
 
-            cur_upsampler = UpSample(2, features[i]*2, features[i])
-            self.up_sampler.append(cur_upsampler)
-
-        double_conv_features = [features[1], features[0], features[0]]
-        print(f'decoder feature: {double_conv_features}')
-        double_conv = DoubleConv(double_conv_features)
-        self.module.append(double_conv)
-
-        cur_upsampler = UpSample(2, features[1], features[0])
-        self.up_sampler.append(cur_upsampler)
+    def setup_up_sampler(self, features):
+        for i in range(len(features)-2):
+            cur_up_sampler = UpSample(2, features[i], features[i+1])
+            self.up_sampler.append(cur_up_sampler)
 
     def forward(self, out_list: List):
         out_list.reverse()
-
+        up_sample_model = self.up_sampler[0]
+        cur_up_sample = up_sample_model(out_list[0])
         for i in range(len(out_list)-1):
-            up_sample_model = self.up_sampler[i]
-            encoder_output = out_list[i]
-            cur_upsample = up_sample_model(encoder_output)
-
             next_encoder_output = out_list[i+1]
-            next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_upsample)
+            next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_up_sample)
 
-            print(f'upsample: {cur_upsample.shape} next encoder: {next_encoder_output.shape}')
+            #print(f'upsample: {cur_up_sample.shape} next encoder: {next_encoder_output.shape}')
 
-            double_conv_inp = torch.concatenate((cur_upsample, next_encoder_output), dim=1)
+            double_conv_inp = torch.concatenate((cur_up_sample, next_encoder_output), dim=1)
+            #print(f'double conv inp: {double_conv_inp.shape}')
 
             double_conv = self.module[i]
+            cur_double_conv = double_conv(double_conv_inp)
 
-            return double_conv(double_conv_inp)
+            if i == len(out_list)-2:
+                double_conv = self.module[i+1]
+                return double_conv(cur_double_conv)
+
+            up_sample_model = self.up_sampler[i+1]
+            #print(f'cur double conv: {cur_double_conv.shape}')
+            cur_up_sample = up_sample_model(cur_double_conv) #this is causing problems
 
 
 class UNET(nn.Module):
     def __init__(self):
         super(UNET, self).__init__()
 
-        self.features = [3, 32, 64, 128]
+        self.features = [3, 64, 128, 256, 512, 1024]
 
-        #self.up_sample = UpSample(scaling_factor=2)
         self.down_sample = DownSample(scaling_factor=2)
 
         self.encoder = Encoder(self.features, self.down_sample)
-        self.decoder = Decoder(self.features)#, self.up_sample)
+        self.decoder = Decoder(self.features)
 
     def forward(self, x):
         out_list = self.encoder(x)
@@ -129,7 +128,7 @@ def resize(x, skip_connection):
 
 
 def pad_tensor_shapes_if_odd(inp_tensor):
-    tensor_shape = [0 for i in range(4)]
+    tensor_shape = [0 for _ in range(4)]
     tensor_shape[2] = inp_tensor.shape[2] % 2
     tensor_shape[3] = inp_tensor.shape[3] % 2
     return F.pad(inp_tensor, tensor_shape, "constant", 0)
