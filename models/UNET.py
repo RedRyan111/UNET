@@ -77,11 +77,13 @@ class Decoder(nn.Module):
         out_list.reverse()
         up_sample_model = self.up_sampler[0]
         cur_up_sample = up_sample_model(out_list[0])
+        #print(f'before upsample: {out_list[0].shape} post: {cur_up_sample.shape}')
         for i in range(len(out_list)-1):
             next_encoder_output = out_list[i+1]
-            next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_up_sample)
+            #next_encoder_output = crop_tensor_to_tensor_h_and_w(next_encoder_output, cur_up_sample)
+            cur_up_sample = crop_tensor_to_tensor_h_and_w(cur_up_sample, next_encoder_output)
 
-            #print(f'upsample: {cur_up_sample.shape} next encoder: {next_encoder_output.shape}')
+            print(f'upsample: {cur_up_sample.shape} next encoder: {next_encoder_output.shape}')
 
             double_conv_inp = torch.concatenate((cur_up_sample, next_encoder_output), dim=1)
             #print(f'double conv inp: {double_conv_inp.shape}')
@@ -91,10 +93,13 @@ class Decoder(nn.Module):
 
             if i == len(out_list)-2:
                 double_conv = self.module[i+1]
-                return double_conv(cur_double_conv)
+                cur_double_conv = double_conv(cur_double_conv)
+                print(f'cur double conv: {cur_double_conv.shape}')
+                cur_double_conv = crop_tensor_to_tensor_h_and_w(cur_up_sample, next_encoder_output)
+                return cur_double_conv
 
             up_sample_model = self.up_sampler[i+1]
-            #print(f'cur double conv: {cur_double_conv.shape}')
+            print(f'cur double conv: {cur_double_conv.shape}')
             cur_up_sample = up_sample_model(cur_double_conv) #this is causing problems
 
 
@@ -111,7 +116,7 @@ class UNET(nn.Module):
 
     def forward(self, x):
         out_list = self.encoder(x)
-        [print(i.shape) for i in out_list]
+        #[print(i.shape) for i in out_list]
         y = self.decoder(out_list)
         return y
 
@@ -130,7 +135,7 @@ def resize(x, skip_connection):
 def pad_tensor_shapes_if_odd(inp_tensor):
     tensor_shape = [0 for _ in range(4)]
     tensor_shape[2] = inp_tensor.shape[2] % 2
-    tensor_shape[3] = inp_tensor.shape[3] % 2
+    tensor_shape[0] = inp_tensor.shape[3] % 2
     return F.pad(inp_tensor, tensor_shape, "constant", 0)
 
 
@@ -149,9 +154,10 @@ class UpSample(nn.Module):
         super(UpSample, self).__init__()
 
         self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
-        self.conv = nn.Conv2d(inp_features, out_features, kernel_size=3)
+        self.conv = nn.Conv2d(inp_features, out_features, kernel_size=3, padding=1)
 
     def forward(self, x):
         up = self.up_sample(x)
         conv = self.conv(up)
+        print(f'inp: {x.shape} up: {up.shape} conv: {conv.shape}')
         return conv
