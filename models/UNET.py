@@ -100,10 +100,10 @@ class DoubleConv(nn.Module):
         super(DoubleConv, self).__init__()
 
         self.conv = nn.Sequential(
-            nn.Conv2d(features[0], features[1], 3, 1, 1, bias=False),
+            nn.Conv2d(features[0], features[1], 5, 1, 2, bias=False),
             nn.BatchNorm2d(features[1]),
             nn.ReLU(inplace=True),
-            nn.Conv2d(features[1], features[2], 3, 1, 1, bias=False),
+            nn.Conv2d(features[1], features[2], 5, 1, 2, bias=False),
             nn.BatchNorm2d(features[2]),
             nn.ReLU(inplace=True)
         )
