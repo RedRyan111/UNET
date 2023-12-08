@@ -4,7 +4,6 @@ import models.UNET as UNET
 import torch.nn as nn
 import torch.optim as op
 import torch
-import matplotlib.pyplot as plt
 
 from display_helper import display_image
 
@@ -27,7 +26,7 @@ bce_loss = nn.CrossEntropyLoss()
 optimizer = op.Adam(model.parameters(), lr=.01)
 max_pool = nn.MaxPool2d(kernel_size=(3, 3))
 epochs = 6000
-display_every = 5
+display_every = 100
 loss_list = []
 
 for epoch in range(epochs):
