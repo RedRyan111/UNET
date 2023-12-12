@@ -9,16 +9,13 @@ import numpy as np
 
 class UNet(nn.Module):
 
-    def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
+    def __init__(self, filters, in_channels=3, out_channels=1, is_deconv=True, is_batchnorm=True):
         super(UNet, self).__init__()
         self.is_deconv = is_deconv
         self.in_channels = in_channels
+        self.out_channels = out_channels
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
-        #
-        # filters = [32, 64, 128, 256, 512]
-        filters = [64, 128, 256, 512, 1024]
-        # # filters = [int(x / self.feature_scale) for x in filters]
 
         # downsampling
         self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)

@@ -3,6 +3,9 @@ import torch.nn as nn
 import torch
 import torchvision.transforms.functional as TF
 
+from down_samplers.UNET_MaxPool import DownSample
+from up_samplers.UNET_Bilinear import UpSample
+
 
 class UNET(nn.Module):
     def __init__(self, features, num_inp_channels, num_labels):
@@ -110,26 +113,3 @@ class DoubleConv(nn.Module):
 
     def forward(self, x):
         return self.conv(x)
-
-
-class DownSample(nn.Module):
-    def __init__(self, scaling_factor):
-        super(DownSample, self).__init__()
-
-        self.down_sample = nn.MaxPool2d(kernel_size=scaling_factor, stride=scaling_factor)
-
-    def forward(self, x):
-        return self.down_sample(x)
-
-
-class UpSample(nn.Module):
-    def __init__(self, scaling_factor, inp_features, out_features):
-        super(UpSample, self).__init__()
-
-        self.up_sample = nn.UpsamplingBilinear2d(scale_factor=scaling_factor)
-        self.conv = nn.Conv2d(inp_features, out_features, kernel_size=3, padding=1)
-
-    def forward(self, x):
-        up = self.up_sample(x)
-        conv = self.conv(up)
-        return conv
