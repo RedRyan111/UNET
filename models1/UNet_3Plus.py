@@ -6,6 +6,7 @@ import torch.nn.functional as F
 #from init_weights import init_weights
 from models1.layers import unetConv2
 from models1.init_weights import init_weights
+import torchvision.transforms.functional as TF
 
 '''
     UNet 3+
@@ -19,8 +20,8 @@ class UNet_3Plus(nn.Module):
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
 
-        filters = [64, 128, 256, 512, 1024]
-        #filters = [4, 8, 16, 32, 64, 128]
+        #filters = [64, 128, 256, 512, 1024]
+        filters = [4, 8, 16, 32, 64, 128]
 
         ## -------------Encoder--------------
         self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
@@ -214,6 +215,14 @@ class UNet_3Plus(nn.Module):
         h3_PT_hd4 = self.h3_PT_hd4_relu(self.h3_PT_hd4_bn(self.h3_PT_hd4_conv(self.h3_PT_hd4(h3))))
         h4_Cat_hd4 = self.h4_Cat_hd4_relu(self.h4_Cat_hd4_bn(self.h4_Cat_hd4_conv(h4)))
         hd5_UT_hd4 = self.hd5_UT_hd4_relu(self.hd5_UT_hd4_bn(self.hd5_UT_hd4_conv(self.hd5_UT_hd4(hd5))))
+
+        h2_PT_hd4 = TF.resize(h2_PT_hd4, h1_PT_hd4.shape[2:])
+        h3_PT_hd4 = TF.resize(h3_PT_hd4, h1_PT_hd4.shape[2:])
+        h4_Cat_hd4 = TF.resize(h4_Cat_hd4, h1_PT_hd4.shape[2:])
+        hd5_UT_hd4 = TF.resize(hd5_UT_hd4, h1_PT_hd4.shape[2:])
+
+        print(f'{h1_PT_hd4.shape} {h2_PT_hd4.shape} {h3_PT_hd4.shape} {h4_Cat_hd4.shape} {hd5_UT_hd4.shape}')
+
         hd4 = self.relu4d_1(self.bn4d_1(self.conv4d_1(
             torch.cat((h1_PT_hd4, h2_PT_hd4, h3_PT_hd4, h4_Cat_hd4, hd5_UT_hd4), 1)))) # hd4->40*40*UpChannels
 
@@ -222,6 +231,14 @@ class UNet_3Plus(nn.Module):
         h3_Cat_hd3 = self.h3_Cat_hd3_relu(self.h3_Cat_hd3_bn(self.h3_Cat_hd3_conv(h3)))
         hd4_UT_hd3 = self.hd4_UT_hd3_relu(self.hd4_UT_hd3_bn(self.hd4_UT_hd3_conv(self.hd4_UT_hd3(hd4))))
         hd5_UT_hd3 = self.hd5_UT_hd3_relu(self.hd5_UT_hd3_bn(self.hd5_UT_hd3_conv(self.hd5_UT_hd3(hd5))))
+
+        h2_PT_hd3 = TF.resize(h2_PT_hd3, h1_PT_hd3.shape[2:])
+        h3_Cat_hd3 = TF.resize(h3_Cat_hd3, h1_PT_hd3.shape[2:])
+        hd4_UT_hd3 = TF.resize(hd4_UT_hd3, h1_PT_hd3.shape[2:])
+        hd5_UT_hd3 = TF.resize(hd5_UT_hd3, h1_PT_hd3.shape[2:])
+
+        print(f'{h1_PT_hd3.shape} {h2_PT_hd3.shape} {h3_Cat_hd3.shape} {hd4_UT_hd3.shape} {hd5_UT_hd3.shape}')
+
         hd3 = self.relu3d_1(self.bn3d_1(self.conv3d_1(
             torch.cat((h1_PT_hd3, h2_PT_hd3, h3_Cat_hd3, hd4_UT_hd3, hd5_UT_hd3), 1)))) # hd3->80*80*UpChannels
 
@@ -230,6 +247,14 @@ class UNet_3Plus(nn.Module):
         hd3_UT_hd2 = self.hd3_UT_hd2_relu(self.hd3_UT_hd2_bn(self.hd3_UT_hd2_conv(self.hd3_UT_hd2(hd3))))
         hd4_UT_hd2 = self.hd4_UT_hd2_relu(self.hd4_UT_hd2_bn(self.hd4_UT_hd2_conv(self.hd4_UT_hd2(hd4))))
         hd5_UT_hd2 = self.hd5_UT_hd2_relu(self.hd5_UT_hd2_bn(self.hd5_UT_hd2_conv(self.hd5_UT_hd2(hd5))))
+
+        h2_Cat_hd2 = TF.resize(h2_Cat_hd2, h1_PT_hd2.shape[2:])
+        hd3_UT_hd2 = TF.resize(hd3_UT_hd2, h1_PT_hd2.shape[2:])
+        hd4_UT_hd2 = TF.resize(hd4_UT_hd2, h1_PT_hd2.shape[2:])
+        hd5_UT_hd2 = TF.resize(hd5_UT_hd2, h1_PT_hd2.shape[2:])
+
+        print(f'{h2_Cat_hd2.shape} {h2_Cat_hd2.shape} {hd3_UT_hd2.shape} {hd4_UT_hd2.shape} {hd5_UT_hd2.shape}')
+
         hd2 = self.relu2d_1(self.bn2d_1(self.conv2d_1(
             torch.cat((h1_PT_hd2, h2_Cat_hd2, hd3_UT_hd2, hd4_UT_hd2, hd5_UT_hd2), 1)))) # hd2->160*160*UpChannels
 
@@ -238,6 +263,14 @@ class UNet_3Plus(nn.Module):
         hd3_UT_hd1 = self.hd3_UT_hd1_relu(self.hd3_UT_hd1_bn(self.hd3_UT_hd1_conv(self.hd3_UT_hd1(hd3))))
         hd4_UT_hd1 = self.hd4_UT_hd1_relu(self.hd4_UT_hd1_bn(self.hd4_UT_hd1_conv(self.hd4_UT_hd1(hd4))))
         hd5_UT_hd1 = self.hd5_UT_hd1_relu(self.hd5_UT_hd1_bn(self.hd5_UT_hd1_conv(self.hd5_UT_hd1(hd5))))
+
+        hd2_UT_hd1 = TF.resize(hd2_UT_hd1, h1_Cat_hd1.shape[2:])
+        hd3_UT_hd1 = TF.resize(hd3_UT_hd1, h1_Cat_hd1.shape[2:])
+        hd4_UT_hd1 = TF.resize(hd4_UT_hd1, h1_Cat_hd1.shape[2:])
+        hd5_UT_hd1 = TF.resize(hd5_UT_hd1, h1_Cat_hd1.shape[2:])
+
+        print(f'{h1_Cat_hd1.shape} {hd2_UT_hd1.shape} {hd3_UT_hd1.shape} {hd4_UT_hd1.shape} {hd5_UT_hd1.shape}')
+
         hd1 = self.relu1d_1(self.bn1d_1(self.conv1d_1(
             torch.cat((h1_Cat_hd1, hd2_UT_hd1, hd3_UT_hd1, hd4_UT_hd1, hd5_UT_hd1), 1)))) # hd1->320*320*UpChannels
 
