@@ -21,7 +21,6 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'device: {device}')
 
 #model = UNET.UNET(features, num_inp_channels, num_labels).to(device)
-#model = UNET(features, num_inp_channels, num_labels).to(device)
 model = models1.UNet_3Plus.UNet_3Plus().to(device)
 
 
@@ -30,7 +29,7 @@ bce_loss = nn.CrossEntropyLoss()
 optimizer = op.Adam(model.parameters(), lr=.01)
 max_pool = nn.MaxPool2d(kernel_size=(3, 3))
 epochs = 6000
-display_every = 100
+display_every = 5
 loss_list = []
 
 for epoch in range(epochs):
@@ -45,7 +44,7 @@ for epoch in range(epochs):
     outs = outs.permute(0, 3, 2, 1).squeeze()
 
     loss = mse_loss(train_labels, outs)
-    #loss = bce_loss(train_labels, outs)
+    #loss = bce_loss(train_labels, outs) might be messed up
     loss.backward()
     optimizer.step()
 
