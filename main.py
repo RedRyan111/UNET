@@ -1,7 +1,7 @@
 from torch.utils.data import DataLoader
 from data_loader.data_loader import CustomImageDataset
 import models.UNET as UNET
-#import models1.UNet as UNET
+import models1.UNet_3Plus
 import torch.nn as nn
 import torch.optim as op
 import torch
@@ -20,8 +20,9 @@ num_labels = 1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'device: {device}')
 
-model = UNET.UNET(features, num_inp_channels, num_labels).to(device)
+#model = UNET.UNET(features, num_inp_channels, num_labels).to(device)
 #model = UNET(features, num_inp_channels, num_labels).to(device)
+model = models1.UNet_3Plus.UNet_3Plus().to(device)
 
 
 mse_loss = nn.MSELoss() #change to BCE

@@ -7,6 +7,7 @@ from init_weights import init_weights
 from torchvision import models
 import numpy as np
 
+
 class UNet(nn.Module):
 
     def __init__(self, filters, in_channels=3, out_channels=1, is_deconv=True, is_batchnorm=True):
@@ -38,7 +39,7 @@ class UNet(nn.Module):
         self.up_concat2 = unetUp(filters[2], filters[1], self.is_deconv)
         self.up_concat1 = unetUp(filters[1], filters[0], self.is_deconv)
         #
-        self.outconv1 = nn.Conv2d(filters[0], 1, 3, padding=1)
+        self.outconv1 = nn.Conv2d(filters[0], self.out_channels, 3, padding=1)
 
         # initialise weights
         for m in self.modules():
@@ -47,7 +48,7 @@ class UNet(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 init_weights(m, init_type='kaiming')
 
-    def dotProduct(self,seg,cls):
+    def dotProduct(self, seg, cls):
         B, N, H, W = seg.size()
         seg = seg.view(B, N, H * W)
         final = torch.einsum("ijk,ij->ijk", [seg, cls])

@@ -1,26 +1,22 @@
-# -*- coding: utf-8 -*-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-#from layers import unetConv2
-#from init_weights import init_weights
-from models1.layers import unetConv2
-from models1.init_weights import init_weights
 
 '''
-    UNet 3+
+    UNet 3+ with deep supervision and class-guided module
 '''
-class UNet_3Plus(nn.Module):
+from torch import nn
+
+from models1.layers import unetConv2
+
+
+class UNet_3Plus_DeepSup_CGM(nn.Module):
 
     def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
-        super(UNet_3Plus, self).__init__()
+        super(UNet_3Plus_DeepSup_CGM, self).__init__()
         self.is_deconv = is_deconv
         self.in_channels = in_channels
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
 
         filters = [64, 128, 256, 512, 1024]
-        #filters = [4, 8, 16, 32, 64, 128]
 
         ## -------------Encoder--------------
         self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
@@ -182,8 +178,25 @@ class UNet_3Plus(nn.Module):
         self.bn1d_1 = nn.BatchNorm2d(self.UpChannels)
         self.relu1d_1 = nn.ReLU(inplace=True)
 
-        # output
+        # -------------Bilinear Upsampling--------------
+        self.upscore6 = nn.Upsample(scale_factor=32,mode='bilinear')###
+        self.upscore5 = nn.Upsample(scale_factor=16,mode='bilinear')
+        self.upscore4 = nn.Upsample(scale_factor=8,mode='bilinear')
+        self.upscore3 = nn.Upsample(scale_factor=4,mode='bilinear')
+        self.upscore2 = nn.Upsample(scale_factor=2, mode='bilinear')
+
+        # DeepSup
         self.outconv1 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv2 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv3 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv4 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv5 = nn.Conv2d(filters[4], n_classes, 3, padding=1)
+
+        self.cls = nn.Sequential(
+                    nn.Dropout(p=0.5),
+                    nn.Conv2d(filters[4], 2, 1),
+                    nn.AdaptiveMaxPool2d(1),
+                    nn.Sigmoid())
 
         # initialise weights
         for m in self.modules():
@@ -191,6 +204,13 @@ class UNet_3Plus(nn.Module):
                 init_weights(m, init_type='kaiming')
             elif isinstance(m, nn.BatchNorm2d):
                 init_weights(m, init_type='kaiming')
+
+    def dotProduct(self,seg,cls):
+        B, N, H, W = seg.size()
+        seg = seg.view(B, N, H * W)
+        final = torch.einsum("ijk,ij->ijk", [seg, cls])
+        final = final.view(B, N, H, W)
+        return final
 
     def forward(self, inputs):
         ## -------------Encoder-------------
@@ -207,6 +227,11 @@ class UNet_3Plus(nn.Module):
 
         h5 = self.maxpool4(h4)
         hd5 = self.conv5(h5)  # h5->20*20*1024
+
+        # -------------Classification-------------
+        cls_branch = self.cls(hd5).squeeze(3).squeeze(2)  # (B,N,1,1)->(B,N)
+        cls_branch_max = cls_branch.argmax(dim=1)
+        cls_branch_max = cls_branch_max[:, np.newaxis].float()
 
         ## -------------Decoder-------------
         h1_PT_hd4 = self.h1_PT_hd4_relu(self.h1_PT_hd4_bn(self.h1_PT_hd4_conv(self.h1_PT_hd4(h1))))
@@ -241,5 +266,24 @@ class UNet_3Plus(nn.Module):
         hd1 = self.relu1d_1(self.bn1d_1(self.conv1d_1(
             torch.cat((h1_Cat_hd1, hd2_UT_hd1, hd3_UT_hd1, hd4_UT_hd1, hd5_UT_hd1), 1)))) # hd1->320*320*UpChannels
 
-        d1 = self.outconv1(hd1)  # d1->320*320*n_classes
-        return F.sigmoid(d1)
+        d5 = self.outconv5(hd5)
+        d5 = self.upscore5(d5) # 16->256
+
+        d4 = self.outconv4(hd4)
+        d4 = self.upscore4(d4) # 32->256
+
+        d3 = self.outconv3(hd3)
+        d3 = self.upscore3(d3) # 64->256
+
+        d2 = self.outconv2(hd2)
+        d2 = self.upscore2(d2) # 128->256
+
+        d1 = self.outconv1(hd1) # 256
+
+        d1 = self.dotProduct(d1, cls_branch_max)
+        d2 = self.dotProduct(d2, cls_branch_max)
+        d3 = self.dotProduct(d3, cls_branch_max)
+        d4 = self.dotProduct(d4, cls_branch_max)
+        d5 = self.dotProduct(d5, cls_branch_max)
+
+        return F.sigmoid(d1), F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5)
