@@ -128,16 +128,13 @@ class UNet_3Plus(nn.Module):
         self.CatBlocks = 5
         self.UpChannels = self.CatChannels * self.CatBlocks
 
-        #self.decoder_nodes = []
-        #for decoder_level in range(len(filters)-1):
-        #    self.decoder_nodes.append(DecoderLevel(filters, decoder_level, self.CatChannels, self.UpChannels))
+        self.decoder_nodes = []
+        for decoder_level in range(len(filters)-1):
+            #print(f'decoder level: {decoder_level}')
+            self.decoder_nodes.append(DecoderLevel(filters, decoder_level, self.CatChannels, self.UpChannels))
 
-        #self.decoder_nodes.reverse()
-
-        self.decoder_level_3 = DecoderLevel(filters, 3, self.CatChannels, self.UpChannels)
-        self.decoder_level_2 = DecoderLevel(filters, 2, self.CatChannels, self.UpChannels)
-        self.decoder_level_1 = DecoderLevel(filters, 1, self.CatChannels, self.UpChannels)
-        self.decoder_level_0 = DecoderLevel(filters, 0, self.CatChannels, self.UpChannels)
+        self.decoder_nodes.reverse()
+        self.decoder_nodes = nn.ModuleList(self.decoder_nodes)
 
         # output
         self.outconv1 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
@@ -166,14 +163,86 @@ class UNet_3Plus(nn.Module):
         hd5 = self.conv5(h5)  # h5->20*20*1024
 
         ## -------------Decoder-------------
-        #decoder_input = [h1, h2, h3, h4, hd5]
-        #for decoder_level, decoder_node in enumerate(self.decoder_nodes):
-        #    decoder_input[len() - decoder_level] = decoder_node(decoder_input)
+        decoder_input = [h1, h2, h3, h4, hd5]
+        for decoder_level, decoder_node in enumerate(self.decoder_nodes):
+            #print(f'decoder level: {decoder_level} decoder input: {len(self.filters) - 2 - decoder_level}')
+            decoder_input[len(self.filters) - 2 - decoder_level] = decoder_node(decoder_input)
 
-        hd4 = self.decoder_level_3([h1, h2, h3, h4, hd5])
-        hd3 = self.decoder_level_2([h1, h2, h3, hd4, hd5])
-        hd2 = self.decoder_level_1([h1, h2, hd3, hd4, hd5])
-        hd1 = self.decoder_level_0([h1, hd2, hd3, hd4, hd5])
+        hd1 = decoder_input[0]
 
         d1 = self.outconv1(hd1)  # d1->320*320*n_classes
         return torch.sigmoid(d1)
+
+class Encoder(nn.Module):
+    def __init__(self, filters):
+        super(Encoder, self).__init__()
+
+        self.module = nn.ModuleList([])
+        self.setup(filters)
+
+    def setup(self, filters):
+        for index, feature in enumerate(filters):
+            if index == 0:
+                self.module.append(EncoderBlock(filters, index, False))
+            else:
+                self.module.append(EncoderBlock(filters, index))
+
+    def forward(self, x):
+        encoder_outputs = [x]
+        for index, module in enumerate(self.module):
+            cur_output = module(encoder_outputs[index - 1])
+            encoder_outputs.append(cur_output)
+
+        return encoder_outputs[1:]
+
+
+class EncoderBlock(nn.Module):
+    def __init__(self, filters, encoder_level, use_max_pool=True,  isBatchNorm=True):
+        super(EncoderBlock, self).__init__()
+
+        self.module = self.setup(filters, encoder_level, use_max_pool, isBatchNorm)
+
+    def setup(self, filters, use_max_pool, encoder_level, isBatchNorm):
+        if use_max_pool:
+            return nn.Sequential(
+                nn.MaxPool2d(kernel_size=2),
+                unetConv2(self.in_channels, filters[encoder_level], isBatchNorm)
+            )
+        else:
+            return unetConv2(self.in_channels, filters[encoder_level], isBatchNorm)
+
+    def forward(self, x):
+        return self.module(x)
+
+    def forward(self, x):
+        encoder_outputs = []
+        for index, feature in enumerate(filters):
+
+        self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
+        self.maxpool1 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv2 = unetConv2(filters[0], filters[1], self.is_batchnorm)
+        self.maxpool2 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv3 = unetConv2(filters[1], filters[2], self.is_batchnorm)
+        self.maxpool3 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv4 = unetConv2(filters[2], filters[3], self.is_batchnorm)
+        self.maxpool4 = nn.MaxPool2d(kernel_size=2)
+
+        self.conv5 = unetConv2(filters[3], filters[4], self.is_batchnorm)
+
+        ## -------------Encoder-------------
+        h1 = self.conv1(inputs)  # h1->320*320*64
+
+        h2 = self.maxpool1(h1)
+        h2 = self.conv2(h2)  # h2->160*160*128
+
+        h3 = self.maxpool2(h2)
+        h3 = self.conv3(h3)  # h3->80*80*256
+
+        h4 = self.maxpool3(h3)
+        h4 = self.conv4(h4)  # h4->40*40*512
+
+        h5 = self.maxpool4(h4)
+        hd5 = self.conv5(h5)  # h5->20*20*1024

@@ -5,6 +5,7 @@ import models1.UNet_3Plus
 import torch.nn as nn
 import torch.optim as op
 import torch
+from tqdm import tqdm
 
 from display_helper import display_image
 
@@ -32,7 +33,7 @@ epochs = 6000
 display_every = 5
 loss_list = []
 
-for epoch in range(epochs):
+for epoch in tqdm(range(epochs)):
     train_images, train_labels = next(iter(train_dataloader))
     train_labels = train_labels.to(device)
     train_images = train_images.to(device)/255
