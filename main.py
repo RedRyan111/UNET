@@ -1,13 +1,20 @@
 from torch.utils.data import DataLoader
 from data_loader.data_loader import CustomImageDataset
 import models.UNET as UNET
-import models1.UNet_3Plus
+import models.UNet_3Plus
 import torch.nn as nn
 import torch.optim as op
 import torch
 from tqdm import tqdm
 
 from display_helper import display_image
+
+def date_report(data):
+    image = data[0]
+    data_min = torch.min(image)
+    data_max = torch.max(image)
+    data_mean = torch.mean(image)
+    print(f'min: {data_min} max: {data_max} mean: {data_mean}')
 
 TrainingCustomImageDataset = CustomImageDataset()
 print(len(TrainingCustomImageDataset))
@@ -22,7 +29,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'device: {device}')
 
 #model = UNET.UNET(features, num_inp_channels, num_labels).to(device)
-model = models1.UNet_3Plus.UNet_3Plus().to(device)
+model = models.UNet_3Plus.UNet_3Plus().to(device)
 
 
 mse_loss = nn.MSELoss() #change to BCE
@@ -35,7 +42,7 @@ loss_list = []
 
 for epoch in tqdm(range(epochs)):
     train_images, train_labels = next(iter(train_dataloader))
-    train_labels = train_labels.to(device)
+    train_labels = train_labels.to(device)/255
     train_images = train_images.to(device)/255
 
     train_labels = max_pool(train_labels.permute(0, 2, 1)).permute(0, 2, 1)
@@ -44,8 +51,13 @@ for epoch in tqdm(range(epochs)):
 
     outs = outs.permute(0, 3, 2, 1).squeeze()
 
-    loss = mse_loss(train_labels, outs)
-    #loss = bce_loss(train_labels, outs) might be messed up
+    print(f'image data report')
+    date_report(train_images)
+    print(f'labels data report')
+    date_report(train_labels)
+
+    #loss = mse_loss(train_labels, outs)
+    loss = bce_loss(train_labels, outs) might be messed up
     loss.backward()
     optimizer.step()
 
@@ -56,3 +68,4 @@ for epoch in tqdm(range(epochs)):
     print(f'epoch: {epoch} loss: {loss}')
 
 print('DONE!')
+

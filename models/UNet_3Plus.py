@@ -2,8 +2,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models1.layers import unetConv2
-from models1.init_weights import init_weights
+from models.layers import unetConv2
+from models.init_weights import init_weights
 import torchvision.transforms.functional as TF
 from down_samplers.UNET_MaxPool import DownSample
 

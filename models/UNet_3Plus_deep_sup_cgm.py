@@ -3,7 +3,7 @@
 '''
 from torch import nn
 
-from models1.layers import unetConv2
+from models.layers import unetConv2
 
 
 class UNet_3Plus_DeepSup_CGM(nn.Module):
