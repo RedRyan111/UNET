@@ -18,7 +18,7 @@ class DecoderBlock(nn.Module):
 
         self.module = nn.Sequential(
             UpOrDownSample(encoder_index, decoder_index),
-            nn.Conv2d(inp_channels, cat_channels, 5, padding=2),
+            nn.Conv2d(inp_channels, cat_channels, 3, padding=1),
             nn.BatchNorm2d(cat_channels),
             nn.ReLU(inplace=True)
         )
@@ -94,6 +94,28 @@ class DecoderLevel(nn.Module):
         return self.relu4d_1(self.bn4d_1(self.conv4d_1(torch.cat(cur_out_list, 1))))  # hd4->40*40*UpChannels
 
 
+class Decoder(nn.Module):
+    def __init__(self, filters, CatChannels, UpChannels):
+        super(Decoder, self).__init__()
+        self.decoder_nodes = None
+        self.setup(filters, CatChannels, UpChannels)
+        self.filter_length = len(filters)
+
+    def setup(self, filters, CatChannels, UpChannels):
+        self.decoder_nodes = []
+        for decoder_level in range(len(filters) - 1):
+            self.decoder_nodes.append(DecoderLevel(filters, decoder_level, CatChannels, UpChannels))
+
+        self.decoder_nodes.reverse()
+        self.decoder_nodes = nn.ModuleList(self.decoder_nodes)
+
+    def forward(self, decoder_input):
+        for decoder_level, decoder_node in enumerate(self.decoder_nodes):
+            #change decoder input in reverse order
+            decoder_input[self.filter_length - 2 - decoder_level] = decoder_node(decoder_input) #simpify this
+        return decoder_input[0]
+
+
 class UNet_3Plus(nn.Module):
 
     def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
@@ -104,24 +126,18 @@ class UNet_3Plus(nn.Module):
         self.feature_scale = feature_scale
 
         # filters = [64, 128, 256, 512, 1024]
-        # filters = [8, 16, 32, 64, 128, 256]
+        #filters = [16, 32, 64, 128, 256]
         filters = [4, 8, 16, 32, 64]
         self.filters = filters
+        self.CatChannels = filters[0]
+        self.CatBlocks = 5
+        self.UpChannels = self.CatChannels * self.CatBlocks
 
         ## -------------Encoder--------------
         self.encoder = Encoder(filters)
 
         ## -------------Decoder--------------
-        self.CatChannels = filters[0]
-        self.CatBlocks = 5
-        self.UpChannels = self.CatChannels * self.CatBlocks
-
-        self.decoder_nodes = []
-        for decoder_level in range(len(filters)-1):
-            self.decoder_nodes.append(DecoderLevel(filters, decoder_level, self.CatChannels, self.UpChannels))
-
-        self.decoder_nodes.reverse()
-        self.decoder_nodes = nn.ModuleList(self.decoder_nodes)
+        self.decoder = Decoder(filters, self.CatChannels, self.UpChannels)
 
         # output
         self.outconv1 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
@@ -138,10 +154,7 @@ class UNet_3Plus(nn.Module):
         decoder_input = self.encoder(inputs)
 
         ## -------------Decoder-------------
-        for decoder_level, decoder_node in enumerate(self.decoder_nodes):
-            decoder_input[len(self.filters) - 2 - decoder_level] = decoder_node(decoder_input)
-
-        hd1 = decoder_input[0]
+        hd1 = self.decoder(decoder_input)
 
         d1 = self.outconv1(hd1)  # d1->320*320*n_classes
         return torch.sigmoid(d1)

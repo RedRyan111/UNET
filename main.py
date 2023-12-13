@@ -28,7 +28,7 @@ model = models1.UNet_3Plus.UNet_3Plus().to(device)
 mse_loss = nn.MSELoss() #change to BCE
 bce_loss = nn.CrossEntropyLoss()
 optimizer = op.Adam(model.parameters(), lr=.01)
-max_pool = nn.MaxPool2d(kernel_size=(3, 3))
+max_pool = nn.MaxPool2d(kernel_size=(4, 4))
 epochs = 6000
 display_every = 5
 loss_list = []
