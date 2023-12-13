@@ -123,6 +123,8 @@ class UNet_3Plus(nn.Module):
 
         self.conv5 = unetConv2(filters[3], filters[4], self.is_batchnorm)
 
+        self.encoder = Encoder(filters)
+
         ## -------------Decoder--------------
         self.CatChannels = filters[0]
         self.CatBlocks = 5
@@ -162,8 +164,10 @@ class UNet_3Plus(nn.Module):
         h5 = self.maxpool4(h4)
         hd5 = self.conv5(h5)  # h5->20*20*1024
 
+        decoder_input = self.encoder(inputs)
+
         ## -------------Decoder-------------
-        decoder_input = [h1, h2, h3, h4, hd5]
+        #decoder_input = [h1, h2, h3, h4, hd5]
         for decoder_level, decoder_node in enumerate(self.decoder_nodes):
             #print(f'decoder level: {decoder_level} decoder input: {len(self.filters) - 2 - decoder_level}')
             decoder_input[len(self.filters) - 2 - decoder_level] = decoder_node(decoder_input)
@@ -172,6 +176,7 @@ class UNet_3Plus(nn.Module):
 
         d1 = self.outconv1(hd1)  # d1->320*320*n_classes
         return torch.sigmoid(d1)
+
 
 class Encoder(nn.Module):
     def __init__(self, filters):
@@ -213,36 +218,3 @@ class EncoderBlock(nn.Module):
 
     def forward(self, x):
         return self.module(x)
-
-    def forward(self, x):
-        encoder_outputs = []
-        for index, feature in enumerate(filters):
-
-        self.conv1 = unetConv2(self.in_channels, filters[0], self.is_batchnorm)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv2 = unetConv2(filters[0], filters[1], self.is_batchnorm)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv3 = unetConv2(filters[1], filters[2], self.is_batchnorm)
-        self.maxpool3 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv4 = unetConv2(filters[2], filters[3], self.is_batchnorm)
-        self.maxpool4 = nn.MaxPool2d(kernel_size=2)
-
-        self.conv5 = unetConv2(filters[3], filters[4], self.is_batchnorm)
-
-        ## -------------Encoder-------------
-        h1 = self.conv1(inputs)  # h1->320*320*64
-
-        h2 = self.maxpool1(h1)
-        h2 = self.conv2(h2)  # h2->160*160*128
-
-        h3 = self.maxpool2(h2)
-        h3 = self.conv3(h3)  # h3->80*80*256
-
-        h4 = self.maxpool3(h3)
-        h4 = self.conv4(h4)  # h4->40*40*512
-
-        h5 = self.maxpool4(h4)
-        hd5 = self.conv5(h5)  # h5->20*20*1024
